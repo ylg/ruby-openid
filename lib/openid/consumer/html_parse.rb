@@ -18,7 +18,7 @@ module OpenID
 
     [^>]*>.*?<\/script>
 
-  /mixu 
+  /mix
 
   def OpenID.openid_unescape(s)
     s.gsub('&amp;','&').gsub('&lt;','<').gsub('&gt;','>').gsub('&quot;','"')
@@ -34,7 +34,13 @@ module OpenID
 
 
   def OpenID.parse_link_attrs(html)
-    stripped = html.gsub(REMOVED_RE,'')
+    # TODO encoding needs a test in test_linkparse
+    remove_regex = if html.encoding != REMOVED_RE.encoding
+      Regexp.compile(REMOVED_RE.source.encode(html.encoding))
+    else
+      REMOVED_RE
+    end
+    stripped = html.gsub(remove_regex,'')
     parser = HTMLTokenizer.new(stripped)
 
     links = []
