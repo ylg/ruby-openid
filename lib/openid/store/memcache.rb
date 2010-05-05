@@ -30,10 +30,14 @@ module OpenID
       # the one matching association is expired. (Is allowed to GC expired
       # associations when found.)
       def get_association(server_url, handle=nil)
-        serialized = @cache_client.get(assoc_key(server_url, handle))
-        if serialized
-          return deserialize(serialized)
-        else
+        begin
+          serialized = @cache_client.get(assoc_key(server_url, handle))
+          if serialized
+            return deserialize(serialized)
+          else
+            return nil
+          end
+        rescue Memcached::NotFound
           return nil
         end
       end
@@ -62,8 +66,12 @@ module OpenID
         return false if (timestamp - Time.now.to_i).abs > Nonce.skew
         ts = timestamp.to_s # base 10 seconds since epoch
         nonce_key = key_prefix + 'N' + server_url + '|' + ts + '|' + salt
-        result = @cache_client.add(nonce_key, '', expiry(Nonce.skew + 5))
-        return !!(result =~ /^STORED/)
+        begin
+          result = @cache_client.add(nonce_key, '', expiry(Nonce.skew + 5))
+          return result.nil? || !!(result =~ /^STORED/)
+        rescue Memcached::NotStored
+          return false
+        end
       end
 
       def assoc_key(server_url, assoc_handle=nil)
@@ -86,8 +94,12 @@ module OpenID
       protected
 
       def delete(key)
-        result = @cache_client.delete(key)
-        return !!(result =~ /^DELETED/)
+        begin
+          result = @cache_client.delete(key)
+          return result.nil? || !!(result =~ /^DELETED/)
+        rescue Memcached::NotFound
+          return false
+        end
       end
 
       def serialize(assoc)
